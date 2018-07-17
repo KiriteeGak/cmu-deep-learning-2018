@@ -27,9 +27,11 @@ def make_model(x, y, layers=1, dimensions=(200,), epochs=2, batch_size=32, model
         model = Sequential()
         model.add(Dense(dimensions[0], input_dim=40))
         model.add(Activation('relu'))
+        model.add(Dropout(0.2))
         for _ in range(layers-1):
             model.add(Dense(dimensions[_+1], input_dim=40))
-            model.add(Activation('tanh'))
+            model.add(Activation('relu'))
+            model.add(Dropout(0.3))
         model.add(Dense(138))
         model.add(Activation('softmax'))
         model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=[categorical_accuracy])
@@ -41,28 +43,35 @@ def make_model(x, y, layers=1, dimensions=(200,), epochs=2, batch_size=32, model
 def main():
     train_data = np.load("../resources/HW1P2/train.npy", encoding='bytes')
     training_labels = np.load("../resources/HW1P2/train_labels.npy", encoding='bytes')
-    model = None
-    max_slice = 1000000
-
-    for _ in range(0, 15449191, max_slice):
-        x_train, y_train = prepare_training_data(train_data,
-                                                 training_labels,
-                                                 slice_index=_,
-                                                 max_slice=max_slice)
-        model = make_model(x_train,
-                           y_train,
-                           layers=1,
-                           dimensions=(200, ),
-                           batch_size=32,
-                           epochs=1,
-                           model=model)
-
-    model.save("models/hw1p2_phoneme_prediction.h5py")
-    model = load_model("models/hw1p2_phoneme_prediction.h5py")
-
     x_test = np.load("../resources/HW1P2/dev.npy", encoding='bytes')
     test_labels = np.load("../resources/HW1P2/dev_labels.npy", encoding='bytes')
     x_test, y_test = prepare_training_data(x_test, test_labels)
+
+    model = None
+    max_slice = 1000000
+
+    n_epochs = 10
+
+    for i in range(n_epochs):
+        for _ in range(0, 15449191, max_slice):
+            x_train, y_train = prepare_training_data(train_data,
+                                                     training_labels,
+                                                     slice_index=_,
+                                                     max_slice=max_slice)
+            model = make_model(x_train,
+                               y_train,
+                               layers=4,
+                               dimensions=(1000, 1000),
+                               batch_size=10,
+                               epochs=1,
+                               model=model)
+
+            p = model.predict(x_test)
+            p = (p == p.max(axis=1)[:, None]).astype(int)
+            print("Accuracy is: {}".format(np.count_nonzero(p * y_test) * 100 / y_test.shape[0]))
+
+    model.save("models/hw1p2_phoneme_prediction.h5py")
+    model = load_model("models/hw1p2_phoneme_prediction.h5py")
 
     p = model.predict(x_test)
     p = (p == p.max(axis=1)[:, None]).astype(int)
