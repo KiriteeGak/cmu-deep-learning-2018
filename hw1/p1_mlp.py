@@ -55,8 +55,8 @@ class MultiLayerPerceptron(object):
         return [np.zeros(_.shape[1]) for _ in self.weights]
 
     def fit(self, x, y):
-        self.input_size = x[0].shape[0]
-        self.output_size = y[0].shape[0]
+        self.input_size = x[0][0].shape[0]
+        self.output_size = y[0][0].shape[0]
         self.weights = self._initialise_weights()
         self.bias = self._initialise_bias()
         self.model['weights1'] = self.weights[0]
@@ -72,41 +72,43 @@ class MultiLayerPerceptron(object):
         _error = np.inf
 
         while iterations_occured < self.iterations and _error > self.threshold_error:
-            X, y = make_datasets(size=1)
-            self.layer_outputs = self.forward_propagation(x=X)
-            weights_bias = self.back_propagation(X=x,
-                                                 y=self.layer_outputs[-1],
-                                                 output=y,
-                                                 a2=self.layer_outputs[1])
-            if not self.momentum:
-                self.model['weights1'] -= self.learning_rate * weights_bias[0][0]
-                self.model['bias1'] -= self.learning_rate * weights_bias[0][1]
-                self.model['weights2'] -= self.learning_rate * weights_bias[1][0]
-                self.model['bias2'] -= self.learning_rate * weights_bias[1][1]
-            else:
-                self.model['weights1'] -= (self.beta * self.model['momentum_weights1'] +
-                                           (1 - self.beta) * weights_bias[0][0]) * self.learning_rate
-                self.model['bias1'] -= (self.beta * self.model['momentum_bias1'] +
-                                        (1 - self.beta) * weights_bias[0][1]) * self.learning_rate
-                self.model['weights2'] -= (self.beta * self.model['momentum_weights2'] +
-                                           (1 - self.beta) * weights_bias[1][0]) * self.learning_rate
-                self.model['bias2'] -= (self.beta * self.model['momentum_bias2'] +
-                                        (1 - self.beta) * weights_bias[1][1]) * self.learning_rate
-                self.model['momentum_weights1'] = self.beta * self.model['momentum_weights1'] + \
-                                                        (1 - self.beta) * weights_bias[0][0]
-                self.model['momentum_weights2'] = self.beta * self.model['momentum_weights2'] + \
-                                                        (1 - self.beta) * weights_bias[1][0]
-                self.model['momentum_bias1'] = (self.beta * self.model['momentum_bias1'] +
-                                                      (1 - self.beta) * weights_bias[0][1])
-                self.model['momentum_bias2'] = (self.beta * self.model['momentum_bias2'] +
-                                                      (1 - self.beta) * weights_bias[1][1])
+            # X, y = make_datasets(size=1)
+            for x, label in zip(X, y):
+                self.layer_outputs = self.forward_propagation(x=x)
+                weights_bias = self.back_propagation(X=x,
+                                                     y=self.layer_outputs[-1],
+                                                     output=label,
+                                                     a2=self.layer_outputs[1])
+                if not self.momentum:
+                    self.model['weights1'] -= self.learning_rate * weights_bias[0][0]
+                    self.model['bias1'] -= self.learning_rate * weights_bias[0][1]
+                    self.model['weights2'] -= self.learning_rate * weights_bias[1][0]
+                    self.model['bias2'] -= self.learning_rate * weights_bias[1][1]
+                else:
+                    self.model['weights1'] -= (self.beta * self.model['momentum_weights1'] +
+                                               (1 - self.beta) * weights_bias[0][0]) * self.learning_rate
+                    self.model['bias1'] -= (self.beta * self.model['momentum_bias1'] +
+                                            (1 - self.beta) * weights_bias[0][1]) * self.learning_rate
+                    self.model['weights2'] -= (self.beta * self.model['momentum_weights2'] +
+                                               (1 - self.beta) * weights_bias[1][0]) * self.learning_rate
+                    self.model['bias2'] -= (self.beta * self.model['momentum_bias2'] +
+                                            (1 - self.beta) * weights_bias[1][1]) * self.learning_rate
+                    self.model['momentum_weights1'] = self.beta * self.model['momentum_weights1'] + \
+                                                            (1 - self.beta) * weights_bias[0][0]
+                    self.model['momentum_weights2'] = self.beta * self.model['momentum_weights2'] + \
+                                                            (1 - self.beta) * weights_bias[1][0]
+                    self.model['momentum_bias1'] = (self.beta * self.model['momentum_bias1'] +
+                                                          (1 - self.beta) * weights_bias[0][1])
+                    self.model['momentum_bias2'] = (self.beta * self.model['momentum_bias2'] +
+                                                          (1 - self.beta) * weights_bias[1][1])
 
-            self.weights = [self.model['weights1'], self.model['weights2']]
-            self.bias = [self.model['bias1'], self.model['bias2']]
+                self.weights = [self.model['weights1'], self.model['weights2']]
+                print(self.model['weights2'])
+                self.bias = [self.model['bias1'], self.model['bias2']]
 
-            iterations_occured += 1
-            _error = self.error_(output=self.layer_outputs[-1], actual=y, type_="crossentropy")
-            print("Classification error at the current time is {}".format(round(_error, 3)))
+                iterations_occured += 1
+                _error = self.error_(output=self.layer_outputs[-1], actual=label, type_="crossentropy")
+                print("Classification error at the current time is {}".format(round(_error, 3)))
 
     def back_propagation(self, X, y, a2=None, output=None, reg_lambda=0.01):
         delta2 = self.error_(output=output, actual=y, type_="crossentropy", derivative=True)
@@ -122,7 +124,6 @@ class MultiLayerPerceptron(object):
         dW1 = np.dot(X.T, delta1)
         db1 = np.sum(delta1, axis=0)
         # Add regularization terms
-        # dW3 += reg_lambda * model['W3']
         # dW2 += reg_lambda * self.weights[1]
         # dW1 += reg_lambda * self.weights[0]
         return (dW1, db1), (dW2, db2)
@@ -196,14 +197,31 @@ def make_datasets(size=100):
     return X, np.array(y_)
 
 
+def load_mnist_data():
+    with open("../resources/Handout HW1P1/Demo Tests HW1/data/digitstrain.txt") as w:
+        labels, X = [], []
+        for e in w.readlines():
+            e = e.strip()
+            data_ = list(map(float, [e.split(",")][0]))
+            X.append(np.array([data_[:-1]]))
+            labels.append(data_[-1])
+    y = []
+    for e in labels:
+        temp = list(np.zeros(10, dtype='int32'))
+        temp[int(e)] = 1
+        y.append(np.array([temp]))
+    return X, y
+
+
 if __name__ == '__main__':
-    X, y = make_datasets(size=1)
+    # X, y = make_datasets(size=2)
+    X, y = load_mnist_data()
     s = MultiLayerPerceptron(layers=1,
-                             size=[3],
+                             size=[2],
                              activations=('relu', 'softmax'),
-                             iterations=200,
+                             iterations=2000,
                              learning_rate=0.01,
                              threshold_error=0.15,
-                             momentum=True,
+                             momentum=False,
                              beta=0.9)
     s.fit(x=X, y=y)
