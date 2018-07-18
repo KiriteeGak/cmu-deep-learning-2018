@@ -12,12 +12,10 @@ class PreProcessing(object):
     def load_data():
         import os
         import pickle
-
         import numpy as np
 
         data = []
         labels = []
-
         files = [f for f in os.listdir("cifar-10-batches-py") if "data_batch" in f]
 
         for f_name in files:
@@ -28,24 +26,32 @@ class PreProcessing(object):
         return np.concatenate(data), np.concatenate(labels)
 
     def sample_zero_mean(self):
-        return np.apply_along_axis(lambda arr: (arr-arr.mean())/arr.std(), -1, self.X)
+        return np.apply_along_axis(lambda arr: (arr-arr.mean())/arr.std(), -1, self.X[:2])
 
     def feature_zero_mean(self):
+        x_ = np.zeros(self.X.shape)
         for label_id in range(10):
             idx = np.where(self.Y == label_id)
-            self.X[idx] = (self.X[idx] - self.X[idx].mean())/self.X[idx].std()
+            mean_, std_ = self.X[idx].mean(), self.X[idx].std()
+            x_[idx] = np.apply_along_axis(lambda a: (a-mean_)/std_, -1, self.X[idx])
+        self.X = x_
 
-    def zca(self, x, s, lambda_, epsilon):
-        x_average = np.mean(x)
-        x = x - x_average
-        contrast = np.sqrt(lambda_ + np.mean(x ** 2))
-        return s * x / max(contrast, epsilon)
+    # How is this going to be any more special than standard normalising ...
+    def global_contrast_normalisation(self, s=1, lambda_=10**-5, epsilon=0.1):
+        self.X = np.apply_along_axis(lambda a: s * (a-a.mean())/max(np.sqrt(lambda_ + np.mean(a ** 2)), epsilon),
+                                     -1,
+                                     self.X)
+
+    def zca_normalisation(self):
+        pass
 
     def _reshape(self):
-        return np.apply_along_axis(lambda a: np.reshape(a, (32, 32, 3)), -1, self.X)
+        self.X = np.apply_along_axis(lambda a: np.reshape(a, (32, 32, 3)), -1, self.X)
 
     def chain_pre_processes(self):
-        pass
+        self.sample_zero_mean()
+        self.feature_zero_mean()
+        self.global_contrast_normalisation()
 
 
 def cnn_architecture():
@@ -61,15 +67,15 @@ def cnn_architecture():
     """
 
     model = Sequential()
-    model.add(Conv2D(96, 3, 3, 3, input_shape=(3, 32, 32)))
+    model.add(Conv2D(96, 3, 3, 3, input_shape=(3, 32, 32), border_mode='same'))
     model.add(Activation('relu'))
-    model.add(Conv2D(96, 96, 3, 3))
+    model.add(Conv2D(96, 96, 3, 3, border_mode='same'))
     model.add(Activation('relu'))
     model.add(Conv2D(96, 96, 3, 3, strides=2))
     model.add(Activation('relu'))
-    model.add(Conv2D(192, 96, 3, 3))
+    model.add(Conv2D(192, 96, 3, 3, border_mode='same'))
     model.add(Activation('relu'))
-    model.add(Conv2D(192, 192, 3, 3))
+    model.add(Conv2D(192, 192, 3, 3, border_mode='same'))
     model.add(Activation('relu'))
     model.add(Conv2D(192, 192, 3, 3, strides=2))
     model.add(Activation('relu'))
