@@ -11,6 +11,8 @@ def prepare_training_data(train_data_, training_labels_, slice_index=None, max_s
     X = np.concatenate(list(train_data_))
     Y_ = np.concatenate(list(training_labels_))
     if slice_index is not None and max_slice:
+        idx = np.random.permutation(len(X))
+        X, Y_ = X[idx], Y_[idx]
         Y_ = Y_[slice_index:slice_index + max_slice]
         X = X[slice_index:slice_index + max_slice]
     return X, to_categorical(Y_, num_classes=138)
@@ -66,9 +68,9 @@ def main():
                                epochs=1,
                                model=model)
 
-            p = model.predict(x_test)
-            p = (p == p.max(axis=1)[:, None]).astype(int)
-            print("Accuracy is: {}".format(np.count_nonzero(p * y_test) * 100 / y_test.shape[0]))
+            # p = model.predict(x_test)
+            # p = (p == p.max(axis=1)[:, None]).astype(int)
+            # print("Accuracy is: {}".format(np.count_nonzero(p * y_test) * 100 / y_test.shape[0]))
 
     model.save("models/hw1p2_phoneme_prediction.h5py")
     model = load_model("models/hw1p2_phoneme_prediction.h5py")

@@ -1,7 +1,6 @@
 from keras.models import Sequential
 from keras.layers import Conv2D, Dropout, Dense, Flatten, Activation
 
-
 import numpy as np
 
 
@@ -29,8 +28,7 @@ class PreProcessing(object):
         return np.concatenate(data), np.concatenate(labels)
 
     def sample_zero_mean(self):
-        import numpy as np
-        return np.apply_along_axis(lambda arr: (arr-arr.mean())/arr.std(), self.X)
+        return np.apply_along_axis(lambda arr: (arr-arr.mean())/arr.std(), -1, self.X)
 
     def feature_zero_mean(self):
         for label_id in range(10):
@@ -38,11 +36,46 @@ class PreProcessing(object):
             self.X[idx] = (self.X[idx] - self.X[idx].mean())/self.X[idx].std()
 
     def zca(self, x, s, lambda_, epsilon):
-        import numpy
-        x_average = numpy.mean(x)
+        x_average = np.mean(x)
         x = x - x_average
-        contrast = numpy.sqrt(lambda_ + numpy.mean(x ** 2))
+        contrast = np.sqrt(lambda_ + np.mean(x ** 2))
         return s * x / max(contrast, epsilon)
+
+    def _reshape(self):
+        return np.apply_along_axis(lambda a: np.reshape(a, (32, 32, 3)), -1, self.X)
 
     def chain_pre_processes(self):
         pass
+
+
+def cnn_architecture():
+    """
+    Architecture
+    3 × 3 conv. 96 ReLU
+    3 × 3 conv. 96 ReLU
+    3 × 3 conv. 96 ReLU with stride r = 2
+    3 × 3 conv. 192 ReLU
+    3 × 3 conv. 192 ReLU
+    3 × 3 conv. 192 ReLU with stride r = 2
+    :return:
+    """
+
+    model = Sequential()
+    model.add(Conv2D(96, 3, 3, 3, input_shape=(3, 32, 32)))
+    model.add(Activation('relu'))
+    model.add(Conv2D(96, 96, 3, 3))
+    model.add(Activation('relu'))
+    model.add(Conv2D(96, 96, 3, 3, strides=2))
+    model.add(Activation('relu'))
+    model.add(Conv2D(192, 96, 3, 3))
+    model.add(Activation('relu'))
+    model.add(Conv2D(192, 192, 3, 3))
+    model.add(Activation('relu'))
+    model.add(Conv2D(192, 192, 3, 3, strides=2))
+    model.add(Activation('relu'))
+
+    model.add(Flatten())
+    model.add(Dense(192*8*8, 1000, init='normal'))
+    model.add(Activation('relu'))
+    model.add(Dense(1000, 10, init='normal'))
+    model.add(Activation('softmax'))
