@@ -94,16 +94,15 @@ class MultiLayerPerceptron(object):
                     self.model['bias2'] -= (self.beta * self.model['momentum_bias2'] +
                                             (1 - self.beta) * weights_bias[1][1]) * self.learning_rate
                     self.model['momentum_weights1'] = self.beta * self.model['momentum_weights1'] + \
-                                                            (1 - self.beta) * weights_bias[0][0]
+                                                      (1 - self.beta) * weights_bias[0][0]
                     self.model['momentum_weights2'] = self.beta * self.model['momentum_weights2'] + \
-                                                            (1 - self.beta) * weights_bias[1][0]
+                                                      (1 - self.beta) * weights_bias[1][0]
                     self.model['momentum_bias1'] = (self.beta * self.model['momentum_bias1'] +
-                                                          (1 - self.beta) * weights_bias[0][1])
+                                                    (1 - self.beta) * weights_bias[0][1])
                     self.model['momentum_bias2'] = (self.beta * self.model['momentum_bias2'] +
-                                                          (1 - self.beta) * weights_bias[1][1])
+                                                    (1 - self.beta) * weights_bias[1][1])
 
                 self.weights = [self.model['weights1'], self.model['weights2']]
-                print(self.model['weights2'])
                 self.bias = [self.model['bias1'], self.model['bias2']]
 
                 iterations_occured += 1
@@ -139,18 +138,20 @@ class MultiLayerPerceptron(object):
             return np.array([[1 / (1 + np.exp(-1 * act)) if not derivative else None for act in activation[0]]])
         elif activation_type == 'softmax':
             if not derivative:
-                sum_ = sum([np.exp(act) for act in activation[0]])
-                return np.array([np.exp(act) / sum_ for act in activation])
+                max_ = max(activation[0])
+                sum_ = sum([np.exp(act - max_) for act in activation[0]])
+                return np.array([(np.exp(act - max_) / sum_) for act in activation])
             return self._helper_gradient_softmax(activation)
 
     @staticmethod
     def _helper_gradient_softmax(array_):
         grads = []
-        den_ = sum([np.exp(e) for e in array_]) ** 2
+        max_ = max(array_)
+        den_ = sum([np.exp(e - max_) for e in array_]) ** 2
         for i, _ in array_:
             _temp_array = array_.copy()
             _temp_array.pop(i)
-            grads.append(np.exp(array_[i]) * (sum([np.exp(e) for e in _temp_array])) / den_)
+            grads.append(np.exp(array_[i] - max_) * (sum([np.exp(e - max_) for e in _temp_array])) / den_)
         return grads
 
     def forward_propagation(self, x):
@@ -170,6 +171,7 @@ class MultiLayerPerceptron(object):
     @classmethod
     def error_(cls, output, actual, type_=None, epsilon=1e-12, derivative=False):
         if type_ == "crossentropy":
+            actual = np.around(actual, decimals=3)
             if not derivative:
                 predictions = np.clip(output, epsilon, 1. - epsilon)
                 n = predictions.shape[0]
@@ -181,9 +183,17 @@ class MultiLayerPerceptron(object):
 
     @staticmethod
     def _helper_derivative_softmax(actual, output):
-        return np.array([-1 * ((act * 1 / (out if out else np.inf)) +
-                               (1 - act) * (1 / (1 - (out if out != 1 else np.inf)))) for (act, out) in
-                         zip(actual, output)])
+        l = []
+        for (act, out) in zip(output, actual):
+            term1 = (act * 1 / (out if out > 10 ** (-6) else np.inf))
+            term2 = (1 - act) * (1 / (1 - (out if out != 1 or out > 10 ** (-6) else (0 if out < 10 ** -6
+                                                                                     else np.inf))))
+            if np.isnan(term2):
+                term2 = 0
+                l.append(-1 * (term1 + term2))
+            else:
+                l.append(-1 * (term1 + term2))
+        return np.array(l)
 
 
 def make_datasets(size=100):
@@ -216,12 +226,15 @@ def load_mnist_data():
 if __name__ == '__main__':
     # X, y = make_datasets(size=2)
     X, y = load_mnist_data()
+    idx = np.arange(np.array(X).shape[0])
+    np.random.shuffle(idx)
+    X, y = list(np.array(X)[idx]), list(np.array(y)[idx])
     s = MultiLayerPerceptron(layers=1,
                              size=[2],
                              activations=('relu', 'softmax'),
-                             iterations=2000,
-                             learning_rate=0.01,
-                             threshold_error=0.15,
+                             iterations=10,
+                             learning_rate=0.001,
+                             threshold_error=0.5,
                              momentum=False,
                              beta=0.9)
     s.fit(x=X, y=y)
