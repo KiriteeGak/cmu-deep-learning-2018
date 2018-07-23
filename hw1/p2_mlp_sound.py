@@ -7,15 +7,32 @@ from keras.utils.np_utils import to_categorical
 from keras.metrics import categorical_accuracy
 
 
-def prepare_training_data(train_data_, training_labels_, slice_index=None, max_slice=None):
-    X = np.concatenate(list(train_data_))
-    Y_ = np.concatenate(list(training_labels_))
-    if slice_index is not None and max_slice:
-        idx = np.random.permutation(len(X))
-        X, Y_ = X[idx], Y_[idx]
-        Y_ = Y_[slice_index:slice_index + max_slice]
-        X = X[slice_index:slice_index + max_slice]
-    return X, to_categorical(Y_, num_classes=138)
+def prepare_training_data(train_data_, training_labels_, slice_index=None, max_slice=None, stride=2, index_=2):
+    for _ in range(0, len(train_data_), 2000):
+        train_data__ = train_data_[_:_ + 2000]
+        training_labels__ = training_labels_[_:_ + 2000]
+
+        if not index_ == 0 and not stride == 0:
+            X = np.concatenate([_with_index_and_stride(e, index_=index_, stride=stride)
+                                for e in train_data__])
+
+            Y_ = np.concatenate(training_labels__)
+        else:
+            X = np.concatenate(list(train_data__))
+            Y_ = np.concatenate(list(training_labels__))
+
+        if slice_index is not None and max_slice:
+            idx = np.random.permutation(len(X))
+            X, Y_ = X[idx], Y_[idx]
+            Y_ = Y_[slice_index:slice_index + max_slice]
+            X = X[slice_index:slice_index + max_slice]
+        yield X, to_categorical(Y_, num_classes=138)
+
+
+def _with_index_and_stride(x, index_, stride):
+    y = np.zeros((x.shape[0]+2*stride, x.shape[1]))
+    y[stride: y.shape[0]-stride] = x
+    return np.array([np.concatenate(y[_ - stride: _ + stride + 1]) for _ in range(index_, np.shape(y)[0] - stride)])
 
 
 def make_one_hot_vector(index_, max_length=138):
@@ -30,8 +47,8 @@ def make_model(x, y, layers=1, dimensions=(200,), epochs=2, batch_size=32, model
         model.add(Dense(dimensions[0], input_dim=40))
         model.add(Activation('relu'))
         model.add(Dropout(0.2))
-        for _ in range(layers-1):
-            model.add(Dense(dimensions[_+1], input_dim=40))
+        for _ in range(layers - 1):
+            model.add(Dense(dimensions[_ + 1], input_dim=40))
             model.add(Activation('relu'))
             model.add(Dropout(0.3))
         model.add(Dense(138))
@@ -47,7 +64,7 @@ def main():
     training_labels = np.load("../resources/HW1P2/train_labels.npy", encoding='bytes')
     x_test = np.load("../resources/HW1P2/dev.npy", encoding='bytes')
     test_labels = np.load("../resources/HW1P2/dev_labels.npy", encoding='bytes')
-    x_test, y_test = prepare_training_data(x_test, test_labels)
+    # x_test, y_test = prepare_training_data(x_test, test_labels)
 
     model = None
     max_slice = 1000000
@@ -55,22 +72,22 @@ def main():
     n_epochs = 10
 
     for i in range(n_epochs):
-        for _ in range(0, 15449191, max_slice):
-            x_train, y_train = prepare_training_data(train_data,
-                                                     training_labels,
-                                                     slice_index=_,
-                                                     max_slice=max_slice)
+        for x_train, y_train in prepare_training_data(train_data,
+                                                      training_labels,
+                                                      slice_index=None,
+                                                      max_slice=max_slice,
+                                                      index_=2,
+                                                      stride=2):
             model = make_model(x_train,
                                y_train,
                                layers=4,
-                               dimensions=(1000, 1000),
-                               batch_size=10,
+                               dimensions=(500, 300, 300),
+                               batch_size=32,
                                epochs=1,
                                model=model)
-
-            # p = model.predict(x_test)
-            # p = (p == p.max(axis=1)[:, None]).astype(int)
-            # print("Accuracy is: {}".format(np.count_nonzero(p * y_test) * 100 / y_test.shape[0]))
+            p = model.predict(x_test)
+            p = (p == p.max(axis=1)[:, None]).astype(int)
+            print("Accuracy is: {}".format(np.count_nonzero(p * y_test) * 100 / y_test.shape[0]))
 
     model.save("models/hw1p2_phoneme_prediction.h5py")
     model = load_model("models/hw1p2_phoneme_prediction.h5py")
