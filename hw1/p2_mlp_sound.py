@@ -81,7 +81,7 @@ def main():
             model = make_model(x_train,
                                y_train,
                                layers=4,
-                               dimensions=(500, 300, 300),
+                               dimensions=(1000, 100),
                                batch_size=32,
                                epochs=1,
                                model=model)
