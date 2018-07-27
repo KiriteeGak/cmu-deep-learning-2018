@@ -30,8 +30,8 @@ def prepare_training_data(train_data_, training_labels_, slice_index=None, max_s
 
 
 def _with_index_and_stride(x, index_, stride):
-    y = np.zeros((x.shape[0]+2*stride, x.shape[1]))
-    y[stride: y.shape[0]-stride] = x
+    y = np.zeros((x.shape[0] + 2 * stride, x.shape[1]))
+    y[stride: y.shape[0] - stride] = x
     return np.array([np.concatenate(y[_ - stride: _ + stride + 1]) for _ in range(index_, np.shape(y)[0] - stride)])
 
 
@@ -60,41 +60,46 @@ def make_model(x, y, layers=1, dimensions=(200,), epochs=2, batch_size=32, model
 
 
 def main():
+    max_slice = 1000000
+
     train_data = np.load("../resources/HW1P2/train.npy", encoding='bytes')
     training_labels = np.load("../resources/HW1P2/train_labels.npy", encoding='bytes')
     x_test = np.load("../resources/HW1P2/dev.npy", encoding='bytes')
     test_labels = np.load("../resources/HW1P2/dev_labels.npy", encoding='bytes')
-    # x_test, y_test = prepare_training_data(x_test, test_labels)
 
-    model = None
-    max_slice = 1000000
+    model = load_model("models/hw1p2_phoneme_prediction_1000.h5py")
 
-    n_epochs = 10
+    for x_test, y_test in prepare_training_data(x_test, test_labels, slice_index=None,
+                                                max_slice=max_slice,
+                                                index_=1,
+                                                stride=1):
+        p = model.predict(x_test)
+        p = (p == p.max(axis=1)[:, None]).astype(int)
+        print("Accuracy is: {}".format(np.count_nonzero(p * y_test) * 100 / y_test.shape[0]))
 
-    for i in range(n_epochs):
-        for x_train, y_train in prepare_training_data(train_data,
-                                                      training_labels,
-                                                      slice_index=None,
-                                                      max_slice=max_slice,
-                                                      index_=2,
-                                                      stride=2):
-            model = make_model(x_train,
-                               y_train,
-                               layers=4,
-                               dimensions=(1000, 100),
-                               batch_size=32,
-                               epochs=1,
-                               model=model)
-            p = model.predict(x_test)
-            p = (p == p.max(axis=1)[:, None]).astype(int)
-            print("Accuracy is: {}".format(np.count_nonzero(p * y_test) * 100 / y_test.shape[0]))
 
-    model.save("models/hw1p2_phoneme_prediction.h5py")
-    model = load_model("models/hw1p2_phoneme_prediction.h5py")
+# n_epochs = 10
 
-    p = model.predict(x_test)
-    p = (p == p.max(axis=1)[:, None]).astype(int)
-    print("Accuracy is: {}".format(np.count_nonzero(p * y_test) * 100 / y_test.shape[0]))
+# for i in range(n_epochs):
+# for x_train, y_train in prepare_training_data(train_data,
+#                                               training_labels,
+#                                               slice_index=None,
+#                                               max_slice=max_slice,
+#                                               index_=2,
+#                                               stride=2):
 
+
+#         model = make_model(x_train,
+#                            y_train,
+#                            layers=4,
+#                            dimensions=(1000, 100),
+#                            batch_size=32,
+#                            epochs=1,
+#                            model=model)
+#         p = model.predict(x_test)
+#         p = (p == p.max(axis=1)[:, None]).astype(int)
+#         print("Accuracy is: {}".format(np.count_nonzero(p * y_test) * 100 / y_test.shape[0]))
+
+# model.save("models/hw1p2_phoneme_prediction.h5py")
 
 main()
