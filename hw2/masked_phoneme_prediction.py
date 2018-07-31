@@ -19,10 +19,11 @@ sgd_ = SGD(momentum=0.001, nesterov=True)
 def modify_and_dump_data(data=None):
     if not data:
         TRAIN_DATA_RAW = np.load("/home/kiriteegak/Desktop/github-general/"
-                                 "cmu-deep-learning-2018/hw2/data/p2/train-features.npy")[:1]
+                                 "cmu-deep-learning-2018/hw2/data/p2/train-features.npy")[:10]
         TRAIN_DATA_LABELS = to_categorical(np.concatenate(np.load("/home/kiriteegak/Desktop/github-general/"
                                                                   "cmu-deep-learning-2018/hw2/data/p2/"
-                                                                  "train-labels.npy")[:1]))
+                                                                  "train-labels.npy")[:10]))
+        # TRAIN_DATA_LABELS = np.expand_dims(TRAIN_DATA_LABELS, axis=0)
     else:
         TRAIN_DATA_RAW = np.load("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/"
                                  "hw2/data/dev-features.npy")
@@ -30,25 +31,19 @@ def modify_and_dump_data(data=None):
                                     "hw2/data/p2/train-labels.npy")
 
     max_size = max([_[0].shape[0] for _ in TRAIN_DATA_RAW])
-
     padded_data_array, masked_array = [], []
-
     for _ in TRAIN_DATA_RAW:
         padded_data, mask_created = bucketize_points(_, to_one=max_size)
-        padded_data_array.append(padded_data)
+        padded_data_array.append(_replicate_data_points(padded_data, replication=_[1].shape[0]))
         masked_array.append(mask_created)
-    padded_data_array = np.array(padded_data_array)
-    masked_array = np.array(masked_array)
+    padded_data_array = np.expand_dims(np.concatenate(np.array(padded_data_array)), axis=0)
+    masked_array = np.expand_dims(np.concatenate(np.array(masked_array)), axis=0)
+    # print(padded_data_array.shape, masked_array.shape, TRAIN_DATA_LABELS.shape)
+    return padded_data_array, masked_array, TRAIN_DATA_LABELS
 
-    # joblib.dump(np.array(slice_ranges), "/home/kiriteegak/Desktop/github-general"
-    #                                     "/cmu-deep-learning-2018/"
-    #                                     "hw2/data/p2/slices_ranges")
-    # if not data:
-    #     joblib.dump(padded_data, "/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/"
-    #                              "hw2/data/p2/padded_unsliced_frames_joblib")
-    # else:
-    #     with open("data/p2/sliced_frames_test.pkl", "wb") as f:
-    #         pickle.dump(padded_data[0], f)
+
+def _replicate_data_points(point, replication):
+    return np.array([point for _ in range(replication)])
 
 
 def neighbors(x, max_shape):
@@ -62,10 +57,10 @@ def slice_ranges_each_recording(x, max_shape, pad_1, max_len):
     slices.append([x[len(x) - 1], max_len])
     masks = []
     for _s in slices:
-        zeros_mask = np.zeros(shape=(max_shape, 40))
-        one_mask = np.ones(shape=(_s[1] - _s[0], 40))
+        zeros_mask = np.zeros(shape=(max_shape, 1))
+        one_mask = np.ones(shape=(_s[1] - _s[0], 1))
         zeros_mask[pad_1 + _s[0]: pad_1 + _s[1]] = one_mask
-        masks.append(zeros_mask)
+        masks.append(zeros_mask.T)
     return masks
 
 
@@ -107,20 +102,18 @@ def bucketize_points(ele_, bucket_size=100, to_one=None):
         return ele, slices
 
 
-def time_based_slicing(x):
-    x, crop_at = x[0], x[1]
-    dim = x.get_shape()
-    x = tf.squeeze(x)
-    return tf.slice(x, [0, 2, 0, 0], [1, 3, dim[2], dim[3]])
+def cnn_architecture(X=None, slice_tensors=None, train_data_labels=None):
 
+    def time_based_slicing(x):
+        print(x[0].get_shape(), x[1].get_shape())
+        print((tf.squeeze(tf.tensordot(x[1], x[0], axes=1), [1, 2])/tf.reduce_sum(x[1])).get_shape())
+        return tf.squeeze(tf.tensordot(x[1], x[0], axes=1), [1, 2])/tf.reduce_sum(x[1])
 
-def return_out_shape(input_shape):
-    return tuple([input_shape[0], None, input_shape[2], input_shape[3]])
+    def return_out_shape(input_shape):
+        return tuple([input_shape[0], None, input_shape[2], input_shape[3]])
 
-
-def cnn_architecture(X, slice_tensors, train_data_labels):
-    main_input = Input(shape=(1, 1479, 40), dtype='float32', name='main_input')
-    custom_pooling = Input(shape=(2,), dtype='float16', name='custom_pooling')
+    main_input = Input(shape=(None, 525, 40), dtype='float32', name='main_input')
+    custom_pooling = Input(shape=(None, 1, 525), dtype='float32', name='custom_pooling')
 
     conv1 = Conv2D(filters=48,
                    border_mode='same',
@@ -133,7 +126,9 @@ def cnn_architecture(X, slice_tensors, train_data_labels):
                    kernel_size=2,
                    use_bias=True,
                    activation='relu')(conv1)
-    pool1 = AveragePooling2D(pool_size=(1, 2))(conv2)
+
+    pool1 = AveragePooling2D(pool_size=(1, 1))(conv2)
+
     conv3 = Conv2D(filters=96,
                    kernel_size=(2, 2),
                    border_mode='same',
@@ -142,18 +137,20 @@ def cnn_architecture(X, slice_tensors, train_data_labels):
                    kernel_size=(2, 2),
                    border_mode='same',
                    activation='relu')(conv3)
+
     pool2 = Lambda(time_based_slicing)([conv4, custom_pooling])
     global_pool = GlobalAveragePooling2D()(pool2)
+
     dense1 = Dense(units=100, init='normal', activation='relu')(global_pool)
     dense2 = Dense(units=46, init='normal', activation='softmax')(dense1)
 
     model = Model(inputs=[main_input, custom_pooling], outputs=[dense2])
     model.compile(optimizer=sgd_, loss=categorical_crossentropy, metrics=['accuracy'])
     model.summary()
+    model.fit(x=[X, slice_tensors], y=[train_data_labels], batch_size=16, shuffle=True)
 
 
 if __name__ == '__main__':
-    modify_and_dump_data()
     # points = joblib.load("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/"
     #                      "hw2/data/p2/padded_unsliced_frames_joblib")
     # ranges = joblib.load("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/"
@@ -161,9 +158,10 @@ if __name__ == '__main__':
     # with open("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/hw2/"
     #           "data/p2/one_hot_encoded_labels_p2.pkl", "rb") as f:
     #     TRAIN_DATA_LABELS = pickle.load(f)[:22507]
-
     # c = list(zip(points, TRAIN_DATA_LABELS))
     # random.shuffle(c)
     # points, TRAIN_DATA_LABELS = zip(*c)
 
-    # cnn_architecture(X=points, slice_tensors=ranges, train_data_labels=TRAIN_DATA_LABELS)
+    X, pads, y = modify_and_dump_data()
+    cnn_architecture(X=X, slice_tensors=pads, train_data_labels=y)
+    # cnn_architecture()
