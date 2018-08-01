@@ -103,14 +103,10 @@ def bucketize_points(ele_, bucket_size=100, to_one=None):
 
 
 def cnn_architecture(X=None, slice_tensors=None, train_data_labels=None):
+    # train_data_labels = np.expand_dims(train_data_labels, axis=0)
 
     def time_based_slicing(x):
-        print(x[0].get_shape(), x[1].get_shape())
-        print((tf.squeeze(tf.tensordot(x[1], x[0], axes=1), [1, 2])/tf.reduce_sum(x[1])).get_shape())
         return tf.squeeze(tf.tensordot(x[1], x[0], axes=1), [1, 2])/tf.reduce_sum(x[1])
-
-    def return_out_shape(input_shape):
-        return tuple([input_shape[0], None, input_shape[2], input_shape[3]])
 
     main_input = Input(shape=(None, 525, 40), dtype='float32', name='main_input')
     custom_pooling = Input(shape=(None, 1, 525), dtype='float32', name='custom_pooling')
@@ -144,24 +140,20 @@ def cnn_architecture(X=None, slice_tensors=None, train_data_labels=None):
     dense1 = Dense(units=100, init='normal', activation='relu')(global_pool)
     dense2 = Dense(units=46, init='normal', activation='softmax')(dense1)
 
-    model = Model(inputs=[main_input, custom_pooling], outputs=[dense2])
+    model = Model(inputs=[main_input, custom_pooling], outputs=dense2)
     model.compile(optimizer=sgd_, loss=categorical_crossentropy, metrics=['accuracy'])
     model.summary()
-    model.fit(x=[X, slice_tensors], y=[train_data_labels], batch_size=16, shuffle=True)
+    model.fit(x=[np.expand_dims(X, axis=0), np.expand_dims(slice_tensors, 0)],
+              y=np.expand_dims(train_data_labels, 0),
+              batch_size=1,
+              shuffle=True)
+
+
+def dual_generator():
+    pass
 
 
 if __name__ == '__main__':
-    # points = joblib.load("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/"
-    #                      "hw2/data/p2/padded_unsliced_frames_joblib")
-    # ranges = joblib.load("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/"
-    #                      "hw2/data/p2/slices_ranges")
-    # with open("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/hw2/"
-    #           "data/p2/one_hot_encoded_labels_p2.pkl", "rb") as f:
-    #     TRAIN_DATA_LABELS = pickle.load(f)[:22507]
-    # c = list(zip(points, TRAIN_DATA_LABELS))
-    # random.shuffle(c)
-    # points, TRAIN_DATA_LABELS = zip(*c)
-
     X, pads, y = modify_and_dump_data()
-    cnn_architecture(X=X, slice_tensors=pads, train_data_labels=y)
+    cnn_architecture(X=X[0], slice_tensors=pads[0], train_data_labels=y[0])
     # cnn_architecture()
