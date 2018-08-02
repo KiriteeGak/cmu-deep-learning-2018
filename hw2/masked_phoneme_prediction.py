@@ -5,10 +5,8 @@ import joblib
 import tensorflow as tf
 
 import keras.backend as K
-from keras.models import Sequential, Model
-from keras.layers import Dense, Conv2D, Activation, Dropout, AveragePooling2D, Input, Lambda
-from keras.layers.pooling import GlobalAveragePooling2D
-from keras.backend.tensorflow_backend import transpose
+from keras.models import Model
+from keras.layers import Dense, Conv2D, AveragePooling2D, Input, Lambda, Flatten
 from keras.layers import dot
 from keras.optimizers import Adam, SGD
 from keras.utils.np_utils import to_categorical
@@ -130,17 +128,20 @@ def cnn_architecture(X=None, slice_tensors=None, train_data_labels=None):
     # No lambda layer needed, custom lambda function to convert things to keras tensor
     # pool2 = Lambda(time_based_slicing)([conv4, custom_pooling])
     pool2 = dot([custom_pooling, conv4], axes=2)
-    keras_tensor_conv = Lambda(lambda a: tf.squeeze(a, axis=[1, 2]))(pool2)
+    keras_tensor_conv_1 = Lambda(lambda a: tf.squeeze(a, axis=[1, 2]))(pool2)
 
-    dense1 = Dense(units=100, init='normal', activation='relu')(keras_tensor_conv)
+    # flatten_layer = Flatten()(keras_tensor_conv_1)
+
+    dense1 = Dense(units=100, init='normal', activation='relu')(keras_tensor_conv_1)
     dense2 = Dense(units=46, init='normal', activation='softmax')(dense1)
+    # keras_tensor_conv_2 = Lambda(lambda a: tf.squeeze(a, axis=[1]))(dense2)
 
     model = Model(inputs=[main_input, custom_pooling], outputs=dense2)
     model.compile(optimizer=sgd_, loss=categorical_crossentropy, metrics=['accuracy'])
     model.summary()
 
-    model.fit(x=[np.expand_dims(X, axis=0), np.expand_dims(slice_tensors, 0)],
-              y=np.expand_dims(train_data_labels, 0),
+    model.fit(x=[np.expand_dims(np.expand_dims(X, 0), 1), np.expand_dims(np.expand_dims(slice_tensors, 0), 0)],
+              y=[np.expand_dims(np.expand_dims(train_data_labels, axis=0), axis=0)],
               batch_size=1,
               shuffle=True,
               epochs=200)
@@ -152,5 +153,4 @@ def dual_generator():
 
 if __name__ == '__main__':
     X, pads, y = modify_and_dump_data()
-    cnn_architecture(X=X[0], slice_tensors=pads[0], train_data_labels=y[0])
-    # cnn_architecture()
+    cnn_architecture(X=X[0][0], slice_tensors=pads[0][0].T, train_data_labels=y[0])
