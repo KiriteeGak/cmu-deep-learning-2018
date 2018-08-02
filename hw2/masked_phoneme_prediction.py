@@ -6,9 +6,10 @@ import tensorflow as tf
 
 import keras.backend as K
 from keras.models import Sequential, Model
-from keras.layers import Dense, Conv2D, Activation, Dropout, AveragePooling2D, Input
+from keras.layers import Dense, Conv2D, Activation, Dropout, AveragePooling2D, Input, Lambda
 from keras.layers.pooling import GlobalAveragePooling2D
-from keras.layers.core import Lambda
+from keras.backend.tensorflow_backend import transpose
+from keras.layers import dot
 from keras.optimizers import Adam, SGD
 from keras.utils.np_utils import to_categorical
 from keras.losses import categorical_crossentropy
@@ -16,30 +17,22 @@ from keras.losses import categorical_crossentropy
 sgd_ = SGD(momentum=0.001, nesterov=True)
 
 
-def modify_and_dump_data(data=None):
-    if not data:
-        TRAIN_DATA_RAW = np.load("/home/kiriteegak/Desktop/github-general/"
-                                 "cmu-deep-learning-2018/hw2/data/p2/train-features.npy")[:10]
-        TRAIN_DATA_LABELS = to_categorical(np.concatenate(np.load("/home/kiriteegak/Desktop/github-general/"
-                                                                  "cmu-deep-learning-2018/hw2/data/p2/"
-                                                                  "train-labels.npy")[:10]))
-        # TRAIN_DATA_LABELS = np.expand_dims(TRAIN_DATA_LABELS, axis=0)
-    else:
-        TRAIN_DATA_RAW = np.load("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/"
-                                 "hw2/data/dev-features.npy")
-        TRAIN_DATA_LABELS = np.load("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/"
-                                    "hw2/data/p2/train-labels.npy")
-
+def modify_and_dump_data():
+    TRAIN_DATA_RAW = np.load("/home/kiriteegak/Desktop/github-general/"
+                             "cmu-deep-learning-2018/hw2/data/p2/train-features.npy")[:2]
+    TRAIN_DATA_LABELS = to_categorical(np.concatenate(np.load("/home/kiriteegak/Desktop/github-general/"
+                                                              "cmu-deep-learning-2018/hw2/data/p2/"
+                                                              "train-labels.npy")))[:2]
     max_size = max([_[0].shape[0] for _ in TRAIN_DATA_RAW])
     padded_data_array, masked_array = [], []
-    for _ in TRAIN_DATA_RAW:
-        padded_data, mask_created = bucketize_points(_, to_one=max_size)
-        padded_data_array.append(_replicate_data_points(padded_data, replication=_[1].shape[0]))
-        masked_array.append(mask_created)
-    padded_data_array = np.expand_dims(np.concatenate(np.array(padded_data_array)), axis=0)
-    masked_array = np.expand_dims(np.concatenate(np.array(masked_array)), axis=0)
-    # print(padded_data_array.shape, masked_array.shape, TRAIN_DATA_LABELS.shape)
-    return padded_data_array, masked_array, TRAIN_DATA_LABELS
+    for i in range(0, TRAIN_DATA_RAW.shape[0], 32):
+        for _ in TRAIN_DATA_RAW[i: i+32]:
+            padded_data, mask_created = bucketize_points(_, to_one=max_size)
+            padded_data_array.append(_replicate_data_points(padded_data, replication=_[1].shape[0]))
+            masked_array.append(mask_created)
+        padded_data_array = np.expand_dims(np.concatenate(np.array(padded_data_array)), axis=0)
+        masked_array = np.expand_dims(np.concatenate(np.array(masked_array)), axis=0)
+        return padded_data_array, masked_array, TRAIN_DATA_LABELS
 
 
 def _replicate_data_points(point, replication):
@@ -106,10 +99,10 @@ def cnn_architecture(X=None, slice_tensors=None, train_data_labels=None):
     # train_data_labels = np.expand_dims(train_data_labels, axis=0)
 
     def time_based_slicing(x):
-        return tf.squeeze(tf.tensordot(x[1], x[0], axes=1), [1, 2])/tf.reduce_sum(x[1])
+        return tf.squeeze(tf.tensordot(x[1], x[0], axes=1), [1, 2]) / tf.reduce_sum(x[1])
 
-    main_input = Input(shape=(None, 525, 40), dtype='float32', name='main_input')
-    custom_pooling = Input(shape=(None, 1, 525), dtype='float32', name='custom_pooling')
+    main_input = Input(shape=(1, 477, 40), dtype='float32', name='main_input')
+    custom_pooling = Input(shape=(1, 477, 1), dtype='float32', name='custom_pooling')
 
     conv1 = Conv2D(filters=48,
                    border_mode='same',
@@ -134,19 +127,23 @@ def cnn_architecture(X=None, slice_tensors=None, train_data_labels=None):
                    border_mode='same',
                    activation='relu')(conv3)
 
-    pool2 = Lambda(time_based_slicing)([conv4, custom_pooling])
-    global_pool = GlobalAveragePooling2D()(pool2)
+    # No lambda layer needed, custom lambda function to convert things to keras tensor
+    # pool2 = Lambda(time_based_slicing)([conv4, custom_pooling])
+    pool2 = dot([custom_pooling, conv4], axes=2)
+    keras_tensor_conv = Lambda(lambda a: tf.squeeze(a, axis=[1, 2]))(pool2)
 
-    dense1 = Dense(units=100, init='normal', activation='relu')(global_pool)
+    dense1 = Dense(units=100, init='normal', activation='relu')(keras_tensor_conv)
     dense2 = Dense(units=46, init='normal', activation='softmax')(dense1)
 
     model = Model(inputs=[main_input, custom_pooling], outputs=dense2)
     model.compile(optimizer=sgd_, loss=categorical_crossentropy, metrics=['accuracy'])
     model.summary()
+
     model.fit(x=[np.expand_dims(X, axis=0), np.expand_dims(slice_tensors, 0)],
               y=np.expand_dims(train_data_labels, 0),
               batch_size=1,
-              shuffle=True)
+              shuffle=True,
+              epochs=200)
 
 
 def dual_generator():
