@@ -3,6 +3,7 @@ from time import time
 
 import tensorflow as tf
 
+from keras.backend import sum
 from keras.models import Model
 from keras.layers import Dense, Conv2D, AveragePooling2D, Input, Lambda
 from keras.layers import dot
@@ -12,11 +13,11 @@ from keras.losses import categorical_crossentropy
 
 sgd_ = SGD(momentum=0.001, nesterov=True)
 
-train_data_raw = np.load("/home/kiriteegak/Desktop/github-general/"
-                         "cmu-deep-learning-2018/hw2/data/p2/train-features.npy")
-train_data_labels = np.load("/home/kiriteegak/Desktop/github-general/"
+train_data_raw = np.load("/home/tatras/Desktop/github-general/"
+                         "cmu-deep-learning-2018/hw2/data/p2/train-features.npy")[:10]
+train_data_labels = np.load("/home/tatras/Desktop/github-general/"
                             "cmu-deep-learning-2018/hw2/data/p2/"
-                            "train-labels.npy")
+                            "train-labels.npy")[:10]
 MAX_SIZE = max([_[0].shape[0] for _ in train_data_raw])
 
 
@@ -49,7 +50,7 @@ def slice_ranges_each_recording(x, max_shape, pad_1, max_len):
         zeros_mask = np.zeros(shape=(max_shape, 1))
         one_mask = np.ones(shape=(_s[1] - _s[0], 1))
         zeros_mask[pad_1 + _s[0]: pad_1 + _s[1]] = one_mask
-        masks.append(zeros_mask)
+        masks.append(zeros_mask/zeros_mask.sum())
     return masks
 
 
@@ -121,7 +122,9 @@ def cnn_architecture():
     # No lambda layer needed, custom lambda function to convert things to keras tensor
     # pool2 = Lambda(time_based_slicing)([conv4, custom_pooling])
     pool2 = dot([custom_pooling, conv4], axes=2)
+
     keras_tensor_conv_1 = Lambda(lambda a: tf.squeeze(a, axis=[1, 2]))(pool2)
+
     dense1 = Dense(units=100, init='normal', activation='relu')(keras_tensor_conv_1)
     dense2 = Dense(units=46, init='normal', activation='softmax')(dense1)
 
@@ -132,10 +135,11 @@ def cnn_architecture():
 
 
 if __name__ == '__main__':
-    # modify_and_dump_data()
     cnn_model = cnn_architecture()
+
     st = time()
-    for e in range(30):
+    for e in range(5):
+        print("Started Epoch {}".format(e))
         for X, pads, Y in modify_and_dump_data():
             for x, pad, y in zip(X, pads, Y):
                 cnn_model.fit(x=[np.expand_dims(np.expand_dims(x, 0), 1),
@@ -144,6 +148,6 @@ if __name__ == '__main__':
                               batch_size=1,
                               shuffle=True,
                               verbose=0)
-        print("IN EPOCH {}; Time consumed {} seconds".format(e, time()-st))
+        print("Completed Epoch {}; Time consumed {} seconds".format(e, time() - st))
         st = time()
-    cnn_model.save("models/phoneme_batch_1_update")
+    cnn_model.save("models/phoneme_batch_1_update", overwrite=True)
