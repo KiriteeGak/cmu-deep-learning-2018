@@ -1,4 +1,5 @@
 import numpy as np
+from time import time
 
 import tensorflow as tf
 
@@ -131,13 +132,18 @@ def cnn_architecture():
 
 
 if __name__ == '__main__':
-    modify_and_dump_data()
+    # modify_and_dump_data()
     cnn_model = cnn_architecture()
-    for X, pads, Y in modify_and_dump_data():
-        for x, pad, y in zip(X, pads, Y):
-            cnn_model.fit(x=[np.expand_dims(np.expand_dims(x, 0), 1),
-                             np.expand_dims(np.expand_dims(pad, 0), 0)],
-                          y=[np.expand_dims(np.expand_dims(y, axis=0), axis=0)],
-                          batch_size=1,
-                          shuffle=True)
+    st = time()
+    for e in range(30):
+        for X, pads, Y in modify_and_dump_data():
+            for x, pad, y in zip(X, pads, Y):
+                cnn_model.fit(x=[np.expand_dims(np.expand_dims(x, 0), 1),
+                                 np.expand_dims(np.expand_dims(pad, 0), 0)],
+                              y=[np.expand_dims(np.expand_dims(y, axis=0), axis=0)],
+                              batch_size=1,
+                              shuffle=True,
+                              verbose=0)
+        print("IN EPOCH {}; Time consumed {} seconds".format(e, time()-st))
+        st = time()
     cnn_model.save("models/phoneme_batch_1_update")
