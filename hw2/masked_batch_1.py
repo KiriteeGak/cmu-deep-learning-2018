@@ -3,8 +3,7 @@ from time import time
 
 import tensorflow as tf
 
-from keras.backend import sum
-from keras.models import Model
+from keras.models import Model, load_model
 from keras.layers import Dense, Conv2D, AveragePooling2D, Input, Lambda
 from keras.layers import dot
 from keras.optimizers import SGD
@@ -14,22 +13,26 @@ from keras.losses import categorical_crossentropy
 sgd_ = SGD(momentum=0.001, nesterov=True)
 
 train_data_raw = np.load("/home/tatras/Desktop/github-general/"
-                         "cmu-deep-learning-2018/hw2/data/p2/train-features.npy")[:10]
+                         "cmu-deep-learning-2018/hw2/data/p2/train-features.npy")
 train_data_labels = np.load("/home/tatras/Desktop/github-general/"
                             "cmu-deep-learning-2018/hw2/data/p2/"
-                            "train-labels.npy")[:10]
+                            "train-labels.npy")
 MAX_SIZE = max([_[0].shape[0] for _ in train_data_raw])
 
 
-def modify_and_dump_data():
-    for i, _ in enumerate(train_data_raw):
+def modify_and_dump_data(data=None, labels=None):
+    if data == None and labels == None:
+        data = train_data_raw
+        labels = train_data_labels
+
+    for i, _ in enumerate(data):
         padded_data_array, masked_array = [], []
         padded_data, mask_created = bucketize_points(_, to_one=MAX_SIZE)
         padded_data_array.append(_replicate_data_points(padded_data, replication=_[1].shape[0]))
         masked_array.append(mask_created)
         padded_data_array_ = np.concatenate(np.array(padded_data_array))
         masked_array_ = np.concatenate(np.array(masked_array))
-        yield padded_data_array_, masked_array_, to_categorical(train_data_labels[i], num_classes=46)
+        yield padded_data_array_, masked_array_, to_categorical(labels[i], num_classes=46)
 
 
 def _replicate_data_points(point, replication):
@@ -50,7 +53,7 @@ def slice_ranges_each_recording(x, max_shape, pad_1, max_len):
         zeros_mask = np.zeros(shape=(max_shape, 1))
         one_mask = np.ones(shape=(_s[1] - _s[0], 1))
         zeros_mask[pad_1 + _s[0]: pad_1 + _s[1]] = one_mask
-        masks.append(zeros_mask/zeros_mask.sum())
+        masks.append(zeros_mask / zeros_mask.sum())
     return masks
 
 
@@ -129,13 +132,30 @@ def cnn_architecture():
     dense2 = Dense(units=46, init='normal', activation='softmax')(dense1)
 
     model = Model(inputs=[main_input, custom_pooling], outputs=dense2)
-    model.compile(optimizer=sgd_, loss=categorical_crossentropy, metrics=['accuracy'])
+    model.compile(optimizer='adam', loss=categorical_crossentropy, metrics=['accuracy'])
     model.summary()
     return model
 
 
+def load_dev_and_predict(model_name):
+    dev_data = "/home/tatras/Desktop/github-general/cmu-deep-learning-2018/hw2/data/p2/dev-features.npy"[:100]
+    dev_labels = "/home/tatras/Desktop/github-general/cmu-deep-learning-2018/hw2/data/p2/dev-labels.npy"[:100]
+    model = load_model(model_name, custom_objects={'tf': tf})
+    total, correct = 0, 0
+    for x_dev, pads_dev, y_dev in modify_and_dump_data(data=np.load(dev_data), labels=np.load(dev_labels)):
+        for x, pad, y in zip(x_dev, pads_dev, y_dev):
+            out = model.predict(x=[np.expand_dims(np.expand_dims(x, 0), 1),
+                                   np.expand_dims(np.expand_dims(pad, 0), 0)])
+            out = (out == out.max(axis=1)[:, None]).astype(int)
+            total += 1
+            correct += np.array([y]).dot(out.T)[0][0]
+    print("The accuracy at the current time: ", correct * 100 / total)
+
+
 if __name__ == '__main__':
     cnn_model = cnn_architecture()
+
+    # cnn_model = load_model("models/phoneme_batch_1_update_epoch_1", custom_objects={'tf': tf})
 
     st = time()
     for e in range(5):
@@ -148,6 +168,9 @@ if __name__ == '__main__':
                               batch_size=1,
                               shuffle=True,
                               verbose=0)
+        cnn_model.save("models/phoneme_batch_1_update_epoch_{}".format(e), overwrite=True)
+        load_dev_and_predict("models/phoneme_batch_1_update_epoch_{}".format(e))
         print("Completed Epoch {}; Time consumed {} seconds".format(e, time() - st))
         st = time()
-    cnn_model.save("models/phoneme_batch_1_update", overwrite=True)
+
+    # load_dev_and_predict(model_name="models/phoneme_batch_1_update")
