@@ -57,8 +57,11 @@ def slice_ranges_each_recording(x, max_shape, pad_1, max_len):
     return masks
 
 
-def bucketize_points(ele_, bucket_size=100, to_one=None):
-    ele, slice_r = ele_
+def bucketize_points(ele_, bucket_size=100, to_one=None, masks=True, category=None):
+    if masks and not category:
+        ele, slice_r = ele_
+    else:
+        ele = ele_
 
     if not to_one:
         if ele.shape[0] % bucket_size:
@@ -91,8 +94,11 @@ def bucketize_points(ele_, bucket_size=100, to_one=None):
             ele = np.pad(ele, [(pad_1, pad_2), (0, 0)], 'constant', constant_values=(0,))
 
         # Generating each slice masks
-        slices = np.array(slice_ranges_each_recording(slice_r, to_one, pad_1=pad_1, max_len=ele_[0].shape[0]))
-        return ele, slices
+        if masks:
+            slices = np.array(slice_ranges_each_recording(slice_r, to_one, pad_1=pad_1, max_len=ele_[0].shape[0]))
+            return ele, slices
+        else:
+            return create_epsilon_dimension(ele, pad_1, pad_2, to_categorical(category, num_classes=138))
 
 
 def cnn_architecture():
@@ -152,7 +158,24 @@ def load_dev_and_predict(model_name):
     print("The accuracy at the current time: ", correct * 100 / total)
 
 
+def create_epsilon_dimension(ele, pad_1, pad_2, one_hots):
+    epsilon_base_vector = np.zeros((ele.shape[0], 138))
+    stack_vector = np.ones((ele.shape[0],))
+    stack_vector[pad_1: ele.shape[0] - pad_2] = 0
+    epsilon_base_vector[pad_1: pad_1+one_hots.shape[0], 0:138] = one_hots
+    one_hots = epsilon_base_vector
+    one_hots = np.hstack((one_hots, stack_vector.reshape((ele.shape[0], 1))))
+    return ele, one_hots
+
+
 if __name__ == '__main__':
+    train_data_raw = np.load("/home/kiriteegak/Desktop/github-general/"
+                             "cmu-deep-learning-2018/hw2/data/p2/train-features.npy")[:10]
+    train_data_labels = np.load("/home/kiriteegak/Desktop/github-general/"
+                                "cmu-deep-learning-2018/hw2/data/p2/"
+                                "train-labels.npy")[:10]
+    MAX_SIZE = max([_[0].shape[0] for _ in train_data_raw])
+
     cnn_model = cnn_architecture()
 
     # cnn_model = load_model("models/phoneme_batch_1_update_epoch_1", custom_objects={'tf': tf})
