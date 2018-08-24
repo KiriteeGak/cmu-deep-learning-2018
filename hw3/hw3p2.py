@@ -35,11 +35,11 @@ def make_data(data_size=None, train_data_raw_=None, train_data_labels_=None, bat
 
 
 if __name__ == '__main__':
-    train_data_raw = np.load("/home/kiriteegak/Desktop/"
+    train_data_raw = np.load("/home/tatras/Desktop/"
                              "github-general/cmu-deep-learning-2018/"
                              "resources/HW1P2/train.npy",
                              encoding="bytes")
-    train_data_labels = np.load("/home/kiriteegak/Desktop/"
+    train_data_labels = np.load("/home/tatras/Desktop/"
                                 "github-general/cmu-deep-learning-2018/"
                                 "resources/HW1P2/train_labels.npy",
                                 encoding="bytes")
@@ -47,26 +47,25 @@ if __name__ == '__main__':
     data_size = train_data_labels.shape[0]
     # model_ = lstm_architecture(683)
 
-    model_ = load_model("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/"
-                        "hw3/models/1_layer_lstm_p2_modified_epoch_1")
-
-    for _ in range(2):
-        model_.fit_generator(make_data(data_size=data_size,
-                                       train_data_raw_=train_data_raw,
-                                       train_data_labels_=train_data_labels,
-                                       reshape_=True),
-                             shuffle=False,
-                             steps_per_epoch=data_size)
-        model_.save("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/"
-                    "hw3/models/2_layer_lstm_p2_modified_epoch_{}".format(_ + 2))
-
-    test_data_raw = np.load("/home/kiriteegak/Desktop/github-general/"
+    # model_ = load_model("/home/tatras/Desktop/github-general/cmu-deep-learning-2018/"
+    #                     "hw3/models/2_layer_lstm_p2_modified_epoch_3")
+    # for _ in range(2, 5):
+    #     model_.fit_generator(make_data(data_size=data_size,
+    #                                    train_data_raw_=train_data_raw,
+    #                                    train_data_labels_=train_data_labels,
+    #                                    reshape_=True),
+    #                          shuffle=False,
+    #                          steps_per_epoch=data_size)
+    #     model_.save("/home/tatras/Desktop/github-general/cmu-deep-learning-2018/"
+    #                 "hw3/models/2_layer_lstm_p2_modified_epoch_{}".format(_ + 2))
+    #
+    test_data_raw = np.load("/home/tatras/Desktop/github-general/"
                             "cmu-deep-learning-2018/hw3/data/dev.npy")
-    test_data_labels = np.load("/home/kiriteegak/Desktop/github-general/"
+    test_data_labels = np.load("/home/tatras/Desktop/github-general/"
                                "cmu-deep-learning-2018/hw3/data/dev_phonemes.npy")
 
-    model = load_model("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/"
-                       "hw3/models/2_layer_lstm_p2_modified_epoch_2")
+    model = load_model("/home/tatras/Desktop/github-general/cmu-deep-learning-2018/"
+                       "hw3/models/2_layer_lstm_p2_modified_epoch_6")
 
     # Testing
     # Check if it has just identified zeros. Then ...
