@@ -6,10 +6,6 @@ from keras.layers import LSTM, TimeDistributed, Dense, Input, Lambda
 from keras.layers.core import Activation
 from keras.optimizers import SGD
 
-from keras.layers import LeakyReLU
-
-leaky_relu = LeakyReLU(alpha=0.01)
-
 
 def lstm_architecture():
     input_sequence = Input(shape=(None, 40), name="input_sequence", dtype='float32')
@@ -17,29 +13,29 @@ def lstm_architecture():
     input_length = Input(shape=[1], name='input_length', dtype='int64')
     label_length = Input(shape=[1], name='label_length', dtype='int64')
 
-    lstm_layer_1 = LSTM(256, return_sequences=True, activation='tanh')(input_sequence)
-    lstm_layer_2 = LSTM(128, return_sequences=True, activation='tanh')(lstm_layer_1)
+    lstm_layer_1 = LSTM(256, return_sequences=True, activation='tanh', dropout=0.2)(input_sequence)
+    lstm_layer_2 = LSTM(128, return_sequences=True, activation='tanh', dropout=0.2)(lstm_layer_1)
     time_distributed_dense_1 = TimeDistributed(Dense(139), name='time_dist_1')(lstm_layer_2)
     predictions = Activation(activation='softmax', name='softmax_layer')(time_distributed_dense_1)
 
     # Transposing is already done in ctc_batch_loss
     # predictions_reshaped = Lambda(lambda a: tf.transpose(a, [1, 0, 2]))(predictions)
 
-    loss_ = Lambda(ctc_lambda_func, output_shape=(1,), name='ctc_loss')([predictions,
-                                                                         input_labels,
-                                                                         input_length,
-                                                                         label_length])
+    loss_ = Lambda(ctc_lambda_function, output_shape=(1,), name='ctc_loss')([predictions,
+                                                                             input_labels,
+                                                                             input_length,
+                                                                             label_length])
     sgd = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True, clipnorm=0.5)
     model_ = Model(inputs=[input_sequence, input_labels, input_length, label_length], outputs=loss_)
     model_.compile(optimizer=sgd, loss={'ctc_loss': lambda y_true, y_pred: y_pred})
     return model_
 
 
-def ctc_lambda_func(args):
+def ctc_lambda_function(args):
     y_pred, labels_, input_length, label_length = args
     # the 2 is critical here since the first couple outputs of the RNN tend to be garbage
     y_pred = y_pred[:, 2:, :]
-    return K.ctc_batch_cost(labels_, y_pred, input_length, label_length)
+    return K.ctc_batch_cost(labels_, y_pred, input_length, label_length, ignore_longer_outputs_than_inputs=True)
 
 
 def make_data(data_size_=None, train_data_raw_=None, train_data_labels_=None, batch_size=1, reshape_=None):
@@ -86,7 +82,7 @@ if __name__ == '__main__':
     data_size = train_data_labels.shape[0]
     model = lstm_architecture()
 
-    for _ in range(2):
+    for _ in range(3):
         model.fit_generator(make_data(data_size_=data_size,
                                       train_data_raw_=train_data_raw,
                                       train_data_labels_=train_data_labels,
