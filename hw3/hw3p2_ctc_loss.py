@@ -39,7 +39,7 @@ def ctc_lambda_func(args):
     y_pred, labels_, input_length, label_length = args
     # the 2 is critical here since the first couple outputs of the RNN tend to be garbage
     y_pred = y_pred[:, 2:, :]
-    return K.ctc_batch_cost(labels_, y_pred, input_length, label_length)
+    return K.ctc_batch_cost(labels_, y_pred, input_length, label_length, ignore_longer_outputs_than_inputs=True)
 
 
 def make_data(data_size_=None, train_data_raw_=None, train_data_labels_=None, batch_size=1, reshape_=None):
@@ -72,11 +72,11 @@ def make_data(data_size_=None, train_data_raw_=None, train_data_labels_=None, ba
 
 
 if __name__ == '__main__':
-    train_data_raw = np.load("/home/kiriteegak/Desktop/"
+    train_data_raw = np.load("/home/tatras/Desktop/"
                              "github-general/cmu-deep-learning-2018/"
                              "hw3/data/train.npy",
                              encoding="bytes")
-    train_data_labels = np.load("/home/kiriteegak/Desktop/"
+    train_data_labels = np.load("/home/tatras/Desktop/"
                                 "github-general/cmu-deep-learning-2018/"
                                 "hw3/data/train_phonemes.npy",
                                 encoding="bytes")
@@ -93,7 +93,7 @@ if __name__ == '__main__':
                                       reshape_=False),
                             shuffle=False,
                             steps_per_epoch=data_size)
-        model.save("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/"
+        model.save("/home/tatras/Desktop/github-general/cmu-deep-learning-2018/"
                    "hw3/models/2_layer_lstm_ctc_epoch_{}".format(_))
 
     # test_data_raw = np.load("/home/kiriteegak/Desktop/github-general/"
