@@ -1,10 +1,14 @@
 import numpy as np
 
+import tensorflow as tf
+
 import keras.backend as K
 from keras.models import Model
 from keras.layers import LSTM, TimeDistributed, Dense, Input, Lambda
 from keras.layers.core import Activation
 from keras.optimizers import SGD
+
+from keras.models import load_model
 
 
 def lstm_architecture():
@@ -45,7 +49,8 @@ def make_data(data_size_=None, train_data_raw_=None, train_data_labels_=None, ba
         for i, _ in enumerate(train_data_raw_[st:st + batch_size]):
             padded_sequences.append(_)
             padded_labels.append(train_data_labels_[i])
-            sequence_length.append(_.shape[0]-2), label_length.append(train_data_labels_[i].shape[0])
+            sequence_length.append(_.shape[0] - 2)
+            label_length.append(train_data_labels_[i].shape[0])
         if not reshape_:
             dict_['input_sequence'] = np.array(padded_sequences)
             dict_['input_labels'] = np.array(padded_labels)
@@ -67,7 +72,20 @@ def make_data(data_size_=None, train_data_raw_=None, train_data_labels_=None, ba
                   np.array(padded_labels, dtype='float32').reshape((4, 683, 139))
 
 
-if __name__ == '__main__':
+def change_network_architecture(model_):
+    model_.layers.pop()
+    model_.layers.pop()
+    model_.layers.pop()
+    model_.layers.pop()
+    model_.input.pop(-1)
+    model_.input.pop(-1)
+    model_.input.pop(-1)
+    model_.summary()
+    model_changed_output = Model(model_.inputs, model_.layers[-1].output)
+    return model_changed_output
+
+
+def training_():
     train_data_raw = np.load("/home/tatras/Desktop/"
                              "github-general/cmu-deep-learning-2018/"
                              "hw3/data/train.npy",
@@ -76,12 +94,8 @@ if __name__ == '__main__':
                                 "github-general/cmu-deep-learning-2018/"
                                 "hw3/data/train_phonemes.npy",
                                 encoding="bytes")
-
-    max_size = max([_.shape[0] for _ in train_data_raw])
-    max_label_length = max([_.shape[0] for _ in train_data_labels])
     data_size = train_data_labels.shape[0]
     model = lstm_architecture()
-
     for _ in range(3):
         model.fit_generator(make_data(data_size_=data_size,
                                       train_data_raw_=train_data_raw,
@@ -92,19 +106,23 @@ if __name__ == '__main__':
         model.save("/home/tatras/Desktop/github-general/cmu-deep-learning-2018/"
                    "hw3/models/2_layer_lstm_ctc_epoch_{}".format(_))
 
-    # test_data_raw = np.load("/home/kiriteegak/Desktop/github-general/"
-    #                         "cmu-deep-learning-2018/hw3/data/dev.npy")
-    # test_data_labels = np.load("/home/kiriteegak/Desktop/github-general/"
-    #                            "cmu-deep-learning-2018/hw3/data/dev_phonemes.npy")
-    #
-    # model = load_model("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/"
-    #                    "hw3/models/2_layer_lstm_p2_modified_epoch_2")
-    #
-    # # Testing
-    # # Check if it has just identified zeros. Then ...
-    # acc = []
-    # for d, labels in make_data(data_size=test_data_raw.shape[0],
-    #                            train_data_raw_=test_data_raw,
-    #                            train_data_labels_=test_data_labels, reshape_=True):
-    #     acc.append(np.mean((labels * model.predict(d)).sum(axis=2).sum(axis=1)/max_size))
-    # print("Average accuracy {}".format(np.mean(np.array(acc)) * 100))
+
+def testing_():
+    # Training the data in generators
+    test_data_raw = np.load("/home/kiriteegak/Desktop/github-general/"
+                            "cmu-deep-learning-2018/hw3/data/dev.npy")
+    sizes = np.apply_along_axis(len, 0, test_data_raw)
+    test_data_raw = np.apply_along_axis(np.expand_dims, 0, test_data_raw, 1)
+    model = load_model("/home/kiriteegak/Desktop/github-general/cmu-deep-learning-2018/"
+                       "hw3/models/2_layer_lstm_ctc_epoch_0",
+                       custom_objects={'tf': tf})
+    print("here")
+    model_changed = change_network_architecture(model)
+    return model_changed.predict(x=test_data_raw), sizes
+
+
+if __name__ == '__main__':
+    test_data_labels = np.load("/home/kiriteegak/Desktop/github-general/"
+                               "cmu-deep-learning-2018/hw3/data/dev_phonemes.npy")
+    outputs, lengths_ = testing_()
+    print(K.ctc_decode(outputs, lengths_, greedy=False))
